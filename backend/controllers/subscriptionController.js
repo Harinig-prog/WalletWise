@@ -1,7 +1,6 @@
 const Subscription = require('../models/Subscription');
 const Transaction = require('../models/Transactions');
 const { isValidObjectId } = require('../utils/validation');
-const { escapeRegex } = require('../utils/helpers');
 
 // Get all active subscriptions
 const getSubscriptions = async (req, res) => {
@@ -142,11 +141,12 @@ const detectSubscriptions = async (req, res) => {
                 nextDue.setDate(nextDue.getDate() + 30); // Project next month
 
                 // 2. In-Memory Check (Fixes Unsafe Regex + N+1)
-                // Sanitize key before creating regex
-                const safeKey = escapeRegex(key);
-                const regex = new RegExp(safeKey, 'i');
-
-                const exists = existingSubscriptions.some(sub => regex.test(sub.name));
+                // Match either way round: a subscription saved as "Netflix" should
+                // cover transactions described as "netflix subscription" too.
+                const exists = existingSubscriptions.some(sub => {
+                    const name = (sub.name || '').toLowerCase().trim();
+                    return name && (name.includes(key) || key.includes(name));
+                });
 
                 if (!exists) {
                     candidates.push({
